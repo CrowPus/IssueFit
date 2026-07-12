@@ -1,27 +1,17 @@
-# Production stack: Postgres + PgBouncer + web + worker + Caddy (auto-HTTPS).
+# Production stack: PgBouncer + web + worker + Caddy (auto-HTTPS).
+# Postgres is NOT run here — it's an external, separately-hosted server you
+# provide (POSTGRES_HOST). This VM only pools connections to it.
 # Usage:  docker compose -f docker-compose.prod.yml up -d --build
 # All values come from the .env file next to this file (see .env.production.example).
 
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-
+  # Pools connections to your external Postgres server. Clients (web, worker)
+  # connect to pgbouncer on 6432; pgbouncer forwards to POSTGRES_HOST:POSTGRES_PORT.
   pgbouncer:
     image: edoburu/pgbouncer:latest
     environment:
-      DB_HOST: postgres
+      DB_HOST: ${POSTGRES_HOST}
+      DB_PORT: ${POSTGRES_PORT:-5432}
       DB_USER: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       DB_NAME: ${POSTGRES_DB}
@@ -30,25 +20,26 @@ services:
       MAX_CLIENT_CONN: 200
       DEFAULT_POOL_SIZE: 20
       LISTEN_PORT: 6432
-    depends_on:
-      postgres:
-        condition: service_healthy
     restart: unless-stopped
 
   # One-shot: applies database migrations, then exits. Connects to Postgres
   # directly (not through PgBouncer) because migrations run DDL.
+  #
+  # migrate, web, and worker all build from the same Dockerfile and share one
+  # image tag (below) so Docker builds and stores it ONCE instead of three
+  # times — each container just runs a different command against the same
+  # image. Without a shared tag, Compose treats each `build:` as a separate
+  # image, tripling disk usage on every deploy (this took down a 9.7GB VM).
   migrate:
     build: .
+    image: issuefit-app:latest
     command: pnpm --filter @issuefit/database db:migrate
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
-    depends_on:
-      postgres:
-        condition: service_healthy
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT:-5432}/${POSTGRES_DB}
     restart: "no"
 
   web:
-    build: .
+    image: issuefit-app:latest
     command: pnpm --filter @issuefit/web start
     env_file: .env
     depends_on:
@@ -57,7 +48,7 @@ services:
     restart: unless-stopped
 
   worker:
-    build: .
+    image: issuefit-app:latest
     command: pnpm --filter @issuefit/worker start
     env_file: .env
     depends_on:
@@ -83,6 +74,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  postgres-data:
   caddy-data:
   caddy-config:

@@ -4,14 +4,19 @@ Follow these steps top to bottom. At the end, anyone can visit your domain,
 sign in with GitHub, and use the app. You are the admin; everyone else is a
 normal user.
 
-Everything runs in Docker: the web app, the background worker, Postgres,
-PgBouncer, and Caddy (which gives you free HTTPS automatically).
+Everything runs in Docker: the web app, the background worker, PgBouncer, and
+Caddy (which gives you free HTTPS automatically). **Postgres is not part of
+this stack** — you provide your own, separately-hosted Postgres server, and
+PgBouncer pools connections to it. This keeps the app VM small and avoids
+database data competing with Docker images for disk space.
 
 ---
 
 ## Before you start, you need
 
 - A VM you can SSH into (Ubuntu is assumed below).
+- A separately-hosted Postgres server (its own VM or box) that this app's VM
+  can reach over the network, with a database and user already created.
 - A domain name (e.g. `issuefit.example.com`).
 - Point that domain's DNS **A record** at your VM's public IP.
 - Ports **80** and **443** open on the VM's firewall.
@@ -43,7 +48,8 @@ nano .env
 Fill in every value marked `CHANGE_ME`:
 
 - **`DOMAIN`** — your domain, e.g. `issuefit.example.com`.
-- **`POSTGRES_PASSWORD`** — a long random password. Put the **same** password
+- **`POSTGRES_HOST`** — the hostname or IP of your separately-hosted Postgres
+  server. **`POSTGRES_PASSWORD`** — its password. Put the **same** password
   inside `DATABASE_URL` (only the password part changes).
 - **`BETTER_AUTH_SECRET`** — run `openssl rand -base64 32` and paste the result.
 - **`BETTER_AUTH_URL`** — `https://` + your domain.
@@ -122,6 +128,9 @@ docker compose -f docker-compose.prod.yml exec postgres \
 ## If the app can't reach the database
 
 Confirm PgBouncer is healthy: `docker compose -f docker-compose.prod.yml logs pgbouncer`.
-As a quick test you can point `DATABASE_URL` straight at Postgres
-(`@postgres:5432` instead of `@pgbouncer:6432`) to confirm everything else
-works, then fix PgBouncer.
+Common causes: `POSTGRES_HOST`/`POSTGRES_PORT` in `.env` don't point at your
+external Postgres server, or that server's firewall doesn't allow inbound
+connections from this VM's IP. As a quick test you can point `DATABASE_URL`
+straight at your external Postgres (`@YOUR_POSTGRES_HOST:5432` instead of
+`@pgbouncer:6432`) to confirm the network path and credentials work, then
+fix PgBouncer's configuration.

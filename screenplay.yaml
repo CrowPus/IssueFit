@@ -8,6 +8,10 @@ environment:
   DOMAIN_NAME: issuefit.com
   GITHUB_LINK: https://github.com/Devops-Bot-Official/issuefit.git
   POSTGRES_DB: issuefit
+  # Your external, separately-hosted Postgres server. Postgres does NOT run
+  # on this VM — only PgBouncer does, pooling connections to this address.
+  POSTGRES_HOST: 
+  POSTGRES_PORT: "5432"
   ACCESS_TOKEN: crowstore://ACCESS_TOKEN
   COMPOSE_FILE: docker-compose.prod.yml
   POSTGRES_USER: issuefit
@@ -17,7 +21,8 @@ environment:
   BETTER_AUTH_SECRET: crowstore://BETTER_AUTH_SECRET
   GITHUB_CLIENT_SECRET: crowstore://GITHUB_CLIENT_SECRET
   GITHUB_SERVICE_TOKEN: crowstore://GITHUB_SERVICE_TOKEN
-  ADMIN_GITHUB_USERNAMES: Devops-Bot-Official
+  ADMIN_GITHUB_USERNAMES: Crowpus
+  PROJECT_GITHUB_REPO: Crowpus/issuefit
   CROWSTORE_TOKEN_ACCESS_TOKEN: REPLACE_WITH_CROWSTORE_TOKEN
   CROWSTORE_TOKEN_GITHUB_CLIENT_ID: REPLACE_WITH_CROWSTORE_TOKEN
   CROWSTORE_TOKEN_POSTGRES_PASSWORD: REPLACE_WITH_CROWSTORE_TOKEN
@@ -105,6 +110,10 @@ jobs:
 
                 DOMAIN=${DOMAIN_NAME}
 
+                POSTGRES_HOST=${POSTGRES_HOST}
+
+                POSTGRES_PORT=${POSTGRES_PORT}
+
                 POSTGRES_USER=${POSTGRES_USER}
 
                 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -124,6 +133,8 @@ jobs:
                 GITHUB_SERVICE_TOKEN=${GITHUB_SERVICE_TOKEN}
 
                 ADMIN_GITHUB_USERNAMES=${ADMIN_GITHUB_USERNAMES}
+
+                PROJECT_GITHUB_REPO=${PROJECT_GITHUB_REPO}
 
                 WEEKLY_DIGEST_ENABLED=false
 
@@ -145,6 +156,14 @@ jobs:
               - 'set -euo pipefail
 
                 cd "$APP_DIR"
+
+                sudo docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
+
+                sudo docker image prune -af
+
+                sudo docker builder prune -af
+
+                df -h /
 
                 sudo docker compose -f "$COMPOSE_FILE" up -d --build
 
