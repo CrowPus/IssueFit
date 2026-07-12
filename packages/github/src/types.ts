@@ -59,6 +59,14 @@ export interface GithubRepositoryFile {
   htmlUrl: string;
 }
 
+/** A contributor to a public repository, for the public supporters page. */
+export interface GithubContributor {
+  login: string;
+  avatarUrl: string;
+  htmlUrl: string;
+  contributions: number;
+}
+
 /** An open issue on a repository. Pull requests are filtered out before mapping. */
 export interface GithubIssue {
   id: number;
@@ -100,6 +108,12 @@ export interface GitHubClient {
    * search API. One API call; feeds the cached rankings list (ADR-0021).
    */
   listMostStarredRepositories(accessToken: string, count: number): Promise<GithubRepository[]>;
+  /** A public repository's contributors, most contributions first (human accounts only). */
+  listRepositoryContributors(
+    accessToken: string,
+    owner: string,
+    name: string,
+  ): Promise<GithubContributor[]>;
   /** Any public repository's metadata, regardless of who owns it. */
   getRepository(accessToken: string, owner: string, name: string): Promise<GithubRepositoryDetails>;
   /**

@@ -111,16 +111,10 @@ export default function HomePage() {
               How it works
             </Link>
             <Link
-              href="/privacy"
+              href="/supporters"
               className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
             >
-              Privacy
-            </Link>
-            <Link
-              href="/terms"
-              className="transition-colors hover:text-zinc-900 dark:hover:text-zinc-100"
-            >
-              Terms
+              Supporters
             </Link>
             <a
               href={REPOSITORY_URL}

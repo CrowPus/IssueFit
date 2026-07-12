@@ -3,6 +3,7 @@ import { Octokit } from "@octokit/rest";
 import { classifyGitHubError } from "./errors.js";
 import {
   mapGithubCommunityProfile,
+  mapGithubContributor,
   mapGithubDirectoryFileNames,
   mapGithubIssue,
   mapGithubIssueComment,
@@ -13,6 +14,7 @@ import {
   mapGithubViewerCanPush,
   mapLinkedPullRequestStates,
   type RawGithubCommunityProfile,
+  type RawGithubContributor,
   type RawGithubDirectoryEntry,
   type RawGithubIssue,
   type RawGithubIssueComment,
@@ -22,7 +24,7 @@ import {
   type RawGithubTimelineEvent,
   type RawGithubUser,
 } from "./mapping.js";
-import type { GitHubClient, GithubIssue, GithubRepository } from "./types.js";
+import type { GitHubClient, GithubContributor, GithubIssue, GithubRepository } from "./types.js";
 
 /**
  * Hard cap on repositories fetched per sync. Bounds a single "Sync now"
@@ -105,6 +107,21 @@ export function createGitHubClient(options: CreateGitHubClientOptions = {}): Git
           per_page: count,
         });
         return (data.items as RawGithubRepository[]).map(mapGithubRepository);
+      } catch (error) {
+        throw classifyGitHubError(error);
+      }
+    },
+
+    async listRepositoryContributors(accessToken, owner, name): Promise<GithubContributor[]> {
+      try {
+        const { data } = await octokitFor(accessToken).rest.repos.listContributors({
+          owner,
+          repo: name,
+          per_page: 100,
+        });
+        return (data as RawGithubContributor[])
+          .map(mapGithubContributor)
+          .filter((contributor): contributor is GithubContributor => contributor !== null);
       } catch (error) {
         throw classifyGitHubError(error);
       }

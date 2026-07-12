@@ -10,6 +10,24 @@ export const databaseUrlSchema = z
   .url({ protocol: /^postgres(ql)?$/ })
   .describe("PostgreSQL connection string, e.g. postgres://user:password@host:5432/database");
 
+const booleanEnvSchema = z
+  .string()
+  .default("false")
+  .transform((value, context) => {
+    const normalized = value.trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) {
+      return true;
+    }
+    if (["0", "false", "no", "off"].includes(normalized)) {
+      return false;
+    }
+    context.addIssue({
+      code: "custom",
+      message: "expected true or false",
+    });
+    return z.NEVER;
+  });
+
 export const webEnvSchema = z.object({
   NODE_ENV: nodeEnvSchema.default("development"),
   DATABASE_URL: databaseUrlSchema,
@@ -31,26 +49,12 @@ export const webEnvSchema = z.object({
         .map((username) => username.trim())
         .filter((username) => username.length > 0),
     ),
+  /** When false, the web UI hides the weekly-digest opt-in (email isn't wired up yet). */
+  WEEKLY_DIGEST_ENABLED: booleanEnvSchema,
+  /** The project's own GitHub repo (owner/name), shown on the public /supporters page. */
+  PROJECT_GITHUB_REPO: z.string().default("Devops-Bot-Official/issuefit"),
 });
 export type WebEnv = z.infer<typeof webEnvSchema>;
-
-const booleanEnvSchema = z
-  .string()
-  .default("false")
-  .transform((value, context) => {
-    const normalized = value.trim().toLowerCase();
-    if (["1", "true", "yes", "on"].includes(normalized)) {
-      return true;
-    }
-    if (["0", "false", "no", "off"].includes(normalized)) {
-      return false;
-    }
-    context.addIssue({
-      code: "custom",
-      message: "expected true or false",
-    });
-    return z.NEVER;
-  });
 
 const optionalUrlEnvSchema = z.preprocess(
   (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),

@@ -1,3 +1,4 @@
+import { parseEnv, webEnvSchema } from "@issuefit/config";
 import { findCareerGoalByUserId, findUserById, listUserSkillsWithNames } from "@issuefit/database";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
@@ -37,6 +38,10 @@ export default async function ProfilePage() {
     redirect("/signin");
   }
 
+  // Only surface the weekly-digest opt-in when the operator has actually enabled
+  // the digest feature; otherwise it would promise emails that never send.
+  const { WEEKLY_DIGEST_ENABLED } = parseEnv(webEnvSchema, process.env);
+
   return (
     <>
       <AppHeader
@@ -67,10 +72,12 @@ export default async function ProfilePage() {
           <CareerGoalForm initialValue={toCareerGoalFormValue(careerGoal)} />
         </section>
 
-        <section className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white/80 p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60">
-          <h2 className="text-lg font-semibold">Digest</h2>
-          <WeeklyDigestToggle initialEnabled={user.weeklyDigestEmailEnabled} />
-        </section>
+        {WEEKLY_DIGEST_ENABLED && (
+          <section className="flex flex-col gap-4 rounded-2xl border border-zinc-200 bg-white/80 p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/60">
+            <h2 className="text-lg font-semibold">Digest</h2>
+            <WeeklyDigestToggle initialEnabled={user.weeklyDigestEmailEnabled} />
+          </section>
+        )}
       </main>
     </>
   );

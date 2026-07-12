@@ -166,6 +166,48 @@ describe("createGitHubClient", () => {
     expect(fetchCalls[0]).toContain("per_page=10");
   });
 
+  it("lists a repository's human contributors, dropping bots and anonymous entries", async () => {
+    const fetchCalls: string[] = [];
+    const client = createGitHubClient({
+      fetch: async (input) => {
+        fetchCalls.push(String(input));
+        return jsonResponse([
+          {
+            login: "octocat",
+            avatar_url: "https://avatars.githubusercontent.com/u/1",
+            html_url: "https://github.com/octocat",
+            contributions: 42,
+            type: "User",
+          },
+          {
+            login: "dependabot[bot]",
+            avatar_url: "https://avatars.githubusercontent.com/in/29110",
+            html_url: "https://github.com/apps/dependabot",
+            contributions: 10,
+            type: "Bot",
+          },
+          { name: "anon", email: "a@b.c", contributions: 3, type: "Anonymous" },
+        ]);
+      },
+    });
+
+    const contributors = await client.listRepositoryContributors(
+      "service-token",
+      "octocat",
+      "hello",
+    );
+
+    expect(contributors).toEqual([
+      {
+        login: "octocat",
+        avatarUrl: "https://avatars.githubusercontent.com/u/1",
+        htmlUrl: "https://github.com/octocat",
+        contributions: 42,
+      },
+    ]);
+    expect(fetchCalls[0]).toContain("api.github.com/repos/octocat/hello/contributors");
+  });
+
   it("reads the viewer's push permission from the repository response", async () => {
     const client = createGitHubClient({
       fetch: async () =>

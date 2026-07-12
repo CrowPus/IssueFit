@@ -2,6 +2,7 @@ export { GitHubApiError, classifyGitHubError } from "./errors.js";
 export type { GitHubErrorCategory } from "./errors.js";
 export {
   mapGithubCommunityProfile,
+  mapGithubContributor,
   mapGithubIssue,
   mapGithubIssueComment,
   mapGithubRepository,
@@ -12,6 +13,7 @@ export {
 } from "./mapping.js";
 export type {
   RawGithubCommunityProfile,
+  RawGithubContributor,
   RawGithubIssue,
   RawGithubIssueComment,
   RawGithubLabel,
@@ -25,6 +27,7 @@ export type { CreateGitHubClientOptions } from "./octokit-client.js";
 export type {
   GitHubClient,
   GithubCommunityProfile,
+  GithubContributor,
   GithubIssue,
   GithubIssueComment,
   GithubProfile,

@@ -114,11 +114,13 @@ docker compose -f docker-compose.prod.yml exec postgres \
 ```
 
 ## If sign-in fails
+
 - `BETTER_AUTH_URL` must be exactly `https://` + your domain, no trailing slash.
 - The GitHub OAuth callback URL must be
   `https://YOURDOMAIN/api/auth/callback/github`.
 
 ## If the app can't reach the database
+
 Confirm PgBouncer is healthy: `docker compose -f docker-compose.prod.yml logs pgbouncer`.
 As a quick test you can point `DATABASE_URL` straight at Postgres
 (`@postgres:5432` instead of `@pgbouncer:6432`) to confirm everything else

@@ -33,11 +33,8 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
           <Link href="/how-it-works" className="hover:text-zinc-900 dark:hover:text-zinc-100">
             How it works
           </Link>
-          <Link href="/privacy" className="hover:text-zinc-900 dark:hover:text-zinc-100">
-            Privacy
-          </Link>
-          <Link href="/terms" className="hover:text-zinc-900 dark:hover:text-zinc-100">
-            Terms
+          <Link href="/supporters" className="hover:text-zinc-900 dark:hover:text-zinc-100">
+            Supporters
           </Link>
         </div>
       </footer>

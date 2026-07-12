@@ -1,157 +1,168 @@
-version: '1.0'
+version: "1.0"
 mode: remote
-identifier: Issuefit
+identifier: issufit
 category: dev
 username: crow
 environment:
-  # --- plain (non-secret) settings ---
   APP_DIR: /home/crow/issuefit
-  COMPOSE_FILE: docker-compose.prod.yml
   DOMAIN_NAME: issuefit.com
-  LETSENCRYPT_EMAIL: support@dee-empire.com
-  POSTGRES_USER: issuefit
+  GITHUB_LINK: https://github.com/Devops-Bot-Official/issuefit.git
   POSTGRES_DB: issuefit
-  ADMIN_GITHUB_USERNAMES: CrowPus
-  # --- secrets pulled from crowstore (fill each CROWSTORE_TOKEN_* below) ---
-  GITHUB_LINK: crowstore://GITHUB_LINK
   ACCESS_TOKEN: crowstore://ACCESS_TOKEN
+  COMPOSE_FILE: docker-compose.prod.yml
+  POSTGRES_USER: issuefit
+  GITHUB_CLIENT_ID: crowstore://GITHUB_CLIENT_ID
+  LETSENCRYPT_EMAIL: support@dee-empire.com
   POSTGRES_PASSWORD: crowstore://POSTGRES_PASSWORD
   BETTER_AUTH_SECRET: crowstore://BETTER_AUTH_SECRET
-  GITHUB_CLIENT_ID: crowstore://GITHUB_CLIENT_ID
   GITHUB_CLIENT_SECRET: crowstore://GITHUB_CLIENT_SECRET
   GITHUB_SERVICE_TOKEN: crowstore://GITHUB_SERVICE_TOKEN
-  CROWSTORE_TOKEN_GITHUB_LINK: REPLACE_WITH_CROWSTORE_TOKEN
+  ADMIN_GITHUB_USERNAMES: Devops-Bot-Official
   CROWSTORE_TOKEN_ACCESS_TOKEN: REPLACE_WITH_CROWSTORE_TOKEN
+  CROWSTORE_TOKEN_GITHUB_CLIENT_ID: REPLACE_WITH_CROWSTORE_TOKEN
   CROWSTORE_TOKEN_POSTGRES_PASSWORD: REPLACE_WITH_CROWSTORE_TOKEN
   CROWSTORE_TOKEN_BETTER_AUTH_SECRET: REPLACE_WITH_CROWSTORE_TOKEN
-  CROWSTORE_TOKEN_GITHUB_CLIENT_ID: REPLACE_WITH_CROWSTORE_TOKEN
   CROWSTORE_TOKEN_GITHUB_CLIENT_SECRET: REPLACE_WITH_CROWSTORE_TOKEN
   CROWSTORE_TOKEN_GITHUB_SERVICE_TOKEN: REPLACE_WITH_CROWSTORE_TOKEN
 jobs:
-- name: ISSUEFIT_PROD_DEPLOY
-  stages:
-  - name: Prepare Server
-    tasks:
-      shell:
-        shell: bash
-        steps:
-        - |
-          set -euo pipefail
-          sudo apt-get update -y
-          sudo apt-get install -y ca-certificates curl gnupg lsb-release ufw
-          sudo mkdir -p "$APP_DIR"
-          sudo chown -R "$USER:$USER" "$APP_DIR"
-        enabled: true
-  - name: Install Docker
-    tasks:
-      shell:
-        shell: bash
-        steps:
-        - |
-          set -euo pipefail
-          sudo install -m 0755 -d /etc/apt/keyrings
-          if ! command -v docker >/dev/null 2>&1; then
-            . /etc/os-release
-            case "$ID" in
-              debian) DOCKER_DISTRO="debian" ;;
-              ubuntu) DOCKER_DISTRO="ubuntu" ;;
-              *) echo "Unsupported OS for Docker apt repository: ${ID}"; exit 1 ;;
-            esac
-            curl -fsSL "https://download.docker.com/linux/${DOCKER_DISTRO}/gpg" | sudo gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
-            sudo chmod a+r /etc/apt/keyrings/docker.gpg
-            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${DOCKER_DISTRO} ${VERSION_CODENAME} stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
-            sudo apt-get update -y
-            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-            sudo usermod -aG docker "$USER" || true
-          fi
-          sudo systemctl enable --now docker
-          docker --version
-          docker compose version
-        enabled: true
-  - name: Configure Firewall
-    tasks:
-      shell:
-        shell: bash
-        steps:
-        - |
-          set -euo pipefail
-          sudo ufw allow OpenSSH
-          sudo ufw allow 80/tcp
-          sudo ufw allow 443/tcp
-          sudo ufw --force enable
-          sudo ufw status
-        enabled: true
-  - name: Checkout Source
-    tasks:
-      checkout:
-        token: env=ACCESS_TOKEN
-        enabled: true
-        branches:
-        - main
-        provider: github
-        username: Devops-Bot-Official
-        clone_dir: /home/crow/issuefit
-        source_url: env=GITHUB_LINK
-        private_repo: false
-  - name: Write Environment File
-    tasks:
-      shell:
-        shell: bash
-        steps:
-        - |
-          set -euo pipefail
-          cat > "${APP_DIR}/.env" <<ENVFILE
-          DOMAIN=${DOMAIN_NAME}
-          POSTGRES_USER=${POSTGRES_USER}
-          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-          POSTGRES_DB=${POSTGRES_DB}
-          DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:6432/${POSTGRES_DB}
-          BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-          BETTER_AUTH_URL=https://${DOMAIN_NAME}
-          GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
-          GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
-          GITHUB_SERVICE_TOKEN=${GITHUB_SERVICE_TOKEN}
-          ADMIN_GITHUB_USERNAMES=${ADMIN_GITHUB_USERNAMES}
-          WEEKLY_DIGEST_ENABLED=false
-          EMAIL_DELIVERY_MODE=log
-          LOG_LEVEL=info
-          ENVFILE
-          chmod 600 "${APP_DIR}/.env"
-        enabled: true
-  - name: Build And Start Stack
-    tasks:
-      shell:
-        shell: bash
-        steps:
-        - |
-          set -euo pipefail
-          cd "$APP_DIR"
-          sudo docker compose -f "$COMPOSE_FILE" up -d --build
-          sudo docker compose -f "$COMPOSE_FILE" ps
-        enabled: true
-  - name: Verify Deployment
-    tasks:
-      shell:
-        shell: bash
-        steps:
-        - |
-          set -euo pipefail
-          cd "$APP_DIR"
-          sudo docker compose -f "$COMPOSE_FILE" ps
-          echo "Waiting for the web app and HTTPS certificate..."
-          ok=0
-          for i in $(seq 1 30); do
-            if curl -fsS "https://${DOMAIN_NAME}/api/health" >/dev/null 2>&1; then
-              echo "Health check passed."
-              ok=1
-              break
-            fi
-            sleep 5
-          done
-          if [ "$ok" -ne 1 ]; then
-            echo "Health check did not pass in time; recent logs:"
-            sudo docker compose -f "$COMPOSE_FILE" logs --tail 50 web caddy
-            exit 1
-          fi
-          curl -fsSI "https://${DOMAIN_NAME}/" | head -n 1
-        enabled: true
+  - name: ISSUEFIT_PROD_DEPLOY
+    stages:
+      - name: Prepare Server
+        tasks:
+          shell:
+            shell: bash
+            steps:
+              - 'set -euo pipefail
+
+                sudo apt-get update -y
+
+                sudo apt-get install -y ca-certificates curl gnupg lsb-release ufw
+
+                sudo mkdir -p "$APP_DIR"
+
+                sudo chown -R "$USER:$USER" "$APP_DIR"
+
+                '
+            enabled: false
+      - name: Install Docker
+        tasks:
+          shell:
+            shell: bash
+            steps:
+              - "set -euo pipefail\nsudo install -m 0755 -d /etc/apt/keyrings\nif ! command\
+                \ -v docker >/dev/null 2>&1; then\n  . /etc/os-release\n  case \"$ID\" in\n\
+                \    debian) DOCKER_DISTRO=\"debian\" ;;\n    ubuntu) DOCKER_DISTRO=\"ubuntu\"\
+                \ ;;\n    *) echo \"Unsupported OS for Docker apt repository: ${ID}\"; exit\
+                \ 1 ;;\n  esac\n  curl -fsSL \"https://download.docker.com/linux/${DOCKER_DISTRO}/gpg\"\
+                \ | sudo gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg\n  sudo chmod\
+                \ a+r /etc/apt/keyrings/docker.gpg\n  echo \"deb [arch=$(dpkg --print-architecture)\
+                \ signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/${DOCKER_DISTRO}\
+                \ ${VERSION_CODENAME} stable\" | sudo tee /etc/apt/sources.list.d/docker.list\
+                \ >/dev/null\n  sudo apt-get update -y\n  sudo apt-get install -y docker-ce\
+                \ docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin\n\
+                \  sudo usermod -aG docker \"$USER\" || true\nfi\nsudo systemctl enable\
+                \ --now docker\ndocker --version\ndocker compose version\n"
+            enabled: false
+      - name: Configure Firewall
+        tasks:
+          shell:
+            shell: bash
+            steps:
+              - "set -euo pipefail
+
+                sudo ufw allow OpenSSH
+
+                sudo ufw allow 80/tcp
+
+                sudo ufw allow 443/tcp
+
+                sudo ufw --force enable
+
+                sudo ufw status
+
+                "
+            enabled: false
+      - name: Checkout Source
+        tasks:
+          checkout:
+            token: env=ACCESS_TOKEN
+            enabled: true
+            branches:
+              - main
+            provider: github
+            username: Devops-Bot-Official
+            clone_dir: /home/crow/issuefit
+            source_url: env=GITHUB_LINK
+            private_repo: false
+      - name: Write Environment File
+        tasks:
+          shell:
+            shell: bash
+            steps:
+              - 'set -euo pipefail
+
+                cat > "${APP_DIR}/.env" <<ENVFILE
+
+                DOMAIN=${DOMAIN_NAME}
+
+                POSTGRES_USER=${POSTGRES_USER}
+
+                POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+                POSTGRES_DB=${POSTGRES_DB}
+
+                DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgbouncer:6432/${POSTGRES_DB}
+
+                BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
+
+                BETTER_AUTH_URL=https://${DOMAIN_NAME}
+
+                GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+
+                GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+
+                GITHUB_SERVICE_TOKEN=${GITHUB_SERVICE_TOKEN}
+
+                ADMIN_GITHUB_USERNAMES=${ADMIN_GITHUB_USERNAMES}
+
+                WEEKLY_DIGEST_ENABLED=false
+
+                EMAIL_DELIVERY_MODE=log
+
+                LOG_LEVEL=info
+
+                ENVFILE
+
+                chmod 600 "${APP_DIR}/.env"
+
+                '
+            enabled: true
+      - name: Build And Start Stack
+        tasks:
+          shell:
+            shell: bash
+            steps:
+              - 'set -euo pipefail
+
+                cd "$APP_DIR"
+
+                sudo docker compose -f "$COMPOSE_FILE" up -d --build
+
+                sudo docker compose -f "$COMPOSE_FILE" ps
+
+                '
+            enabled: true
+      - name: Verify Deployment
+        tasks:
+          shell:
+            shell: bash
+            steps:
+              - "set -euo pipefail\ncd \"$APP_DIR\"\nsudo docker compose -f \"$COMPOSE_FILE\"\
+                \ ps\necho \"Waiting for the web app and HTTPS certificate...\"\nok=0\n\
+                for i in $(seq 1 30); do\n  if curl -fsS \"https://${DOMAIN_NAME}/api/health\"\
+                \ >/dev/null 2>&1; then\n    echo \"Health check passed.\"\n    ok=1\n \
+                \   break\n  fi\n  sleep 5\ndone\nif [ \"$ok\" -ne 1 ]; then\n  echo \"\
+                Health check did not pass in time; recent logs:\"\n  sudo docker compose\
+                \ -f \"$COMPOSE_FILE\" logs --tail 50 web caddy\n  exit 1\nfi\ncurl -fsSI\
+                \ \"https://${DOMAIN_NAME}/\" | head -n 1\n"
+            enabled: true

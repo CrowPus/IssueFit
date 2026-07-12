@@ -1,5 +1,6 @@
 import type {
   GithubCommunityProfile,
+  GithubContributor,
   GithubIssue,
   GithubIssueComment,
   GithubProfile,
@@ -52,6 +53,28 @@ export function mapGithubUser(raw: RawGithubUser): GithubProfile {
     followers: raw.followers,
     following: raw.following,
     createdAt: new Date(raw.created_at),
+  };
+}
+
+/** Structural subset of Octokit's contributor list item we rely on. */
+export interface RawGithubContributor {
+  login?: string;
+  avatar_url?: string;
+  html_url?: string;
+  contributions?: number;
+  type?: string;
+}
+
+/** Maps a raw contributor; returns null for non-user entries (bots, anonymous). */
+export function mapGithubContributor(raw: RawGithubContributor): GithubContributor | null {
+  if (raw.type !== "User" || raw.login === undefined) {
+    return null;
+  }
+  return {
+    login: raw.login,
+    avatarUrl: raw.avatar_url ?? "",
+    htmlUrl: raw.html_url ?? `https://github.com/${raw.login}`,
+    contributions: raw.contributions ?? 0,
   };
 }
 
