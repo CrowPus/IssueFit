@@ -10,6 +10,8 @@ import type { NextConfig } from "next";
 loadEnvFile({ path: path.resolve(__dirname, "../../.env"), quiet: true });
 
 const nextConfig: NextConfig = {
+  // Hide the Next.js dev-mode indicator badge (it never renders in production anyway).
+  devIndicators: false,
   images: {
     remotePatterns: [{ protocol: "https", hostname: "avatars.githubusercontent.com" }],
   },

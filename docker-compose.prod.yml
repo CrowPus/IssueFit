@@ -1,0 +1,88 @@
+# Production stack: Postgres + PgBouncer + web + worker + Caddy (auto-HTTPS).
+# Usage:  docker compose -f docker-compose.prod.yml up -d --build
+# All values come from the .env file next to this file (see .env.production.example).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      DB_HOST: postgres
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      AUTH_TYPE: scram-sha-256
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200
+      DEFAULT_POOL_SIZE: 20
+      LISTEN_PORT: 6432
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # One-shot: applies database migrations, then exits. Connects to Postgres
+  # directly (not through PgBouncer) because migrations run DDL.
+  migrate:
+    build: .
+    command: pnpm --filter @issuefit/database db:migrate
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    build: .
+    command: pnpm --filter @issuefit/web start
+    env_file: .env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: pnpm --filter @issuefit/worker start
+    env_file: .env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Terminates HTTPS and proxies to the web container. Gets a free
+  # Let's Encrypt certificate automatically for ${DOMAIN}.
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:

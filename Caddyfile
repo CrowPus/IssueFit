@@ -1,0 +1,5 @@
+# Caddy gets and renews a free HTTPS certificate for your domain automatically.
+# Requires: your domain's DNS points at this VM, and ports 80 + 443 are open.
+{$DOMAIN} {
+	reverse_proxy web:3000
+}
